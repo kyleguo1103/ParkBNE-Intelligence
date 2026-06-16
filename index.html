@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ParkBNE Intelligence — Commercial Site Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span>ParkBNE</span>
+    <div class="logo-tag">INTELLIGENCE</div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchPanel('site')">📊 Site Intelligence</button>
+    <button class="nav-tab" onclick="switchPanel('heatmap')">🗺 Demand Heatmap</button>
+    <button class="nav-tab" onclick="switchPanel('compare')">⚖️ Compare Suburbs</button>
+    <button class="nav-tab" onclick="switchPanel('ai')">🤖 AI Assistant</button>
+    <button class="nav-tab" onclick="switchPanel('feedback')">💬 Feedback</button>
+  </div>
+  <div class="nav-right">
+    <div class="status-badge"><div class="status-dot"></div>BCC Open Data — 18 Suburbs Analysed</div>
+  </div>
+</nav>
+
+<div class="app-body">
+
+  <!-- PANEL 1: SITE INTELLIGENCE -->
+  <div class="panel active" id="sitePanel">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Commercial Site Scoring</div>
+        <div class="sidebar-sub">Rank suburbs by commercial potential</div>
+      </div>
+      <div class="filters">
+        <div>
+          <div class="filter-label">Analysis Focus</div>
+          <div class="filter-chips" style="margin-top:6px">
+            <div class="chip active" id="bizFoot" onclick="setBizFilter(this,'foot')">Foot Traffic <span class="chip-info" onclick="event.stopPropagation();showTooltip(event,'Foot Traffic Score: Estimates how many people visit this suburb based on average parking occupancy (60%) and total bay capacity (40%). A suburb with high occupancy AND many bays suggests high visitor volume.')">ⓘ</span></div>
+            <div class="chip" id="bizEV" onclick="setBizFilter(this,'ev')">EV Charging <span class="chip-info" onclick="event.stopPropagation();showTooltip(event,'EV Charging Suitability: Scores suburbs based on bays per zone (physical space), proportion of long-stay zones 4hrs+ (time to charge), and available capacity. Lower occupancy suburbs score higher as there is more room for charging infrastructure.')">ⓘ</span></div>
+            <div class="chip" id="bizComm" onclick="setBizFilter(this,'comm')">Commercial Dev <span class="chip-info" onclick="event.stopPropagation();showTooltip(event,'Commercial Development Score: Combines average parking occupancy (50%) and average weekday parking rate (50%). High rates plus consistent demand signals a commercially active corridor attractive for business investment.')">ⓘ</span></div>
+          </div>
+        </div>
+        <div class="filter-desc" id="bizFilterDesc">Suburbs ranked by estimated foot traffic based on parking demand and bay capacity</div>
+      </div>
+      <div class="zone-list">
+        <div class="zone-list-header">
+          <span class="zone-count" id="bizCount">18 SUBURBS</span>
+          <span class="zone-count">RANKED BY SCORE</span>
+        </div>
+        <div id="bizList"></div>
+      </div>
+    </div>
+
+    <div class="map-area">
+      <div id="siteMap" style="width:100%;height:100%"></div>
+      <div class="map-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#4af0a0"></div>High</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f5c842"></div>Medium</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f05a5a"></div>Low</div>
+        <div class="legend-item" style="margin-left:8px;padding-left:12px;border-left:1px solid var(--border)" id="bizLegendLabel">Foot traffic score</div>
+      </div>
+    </div>
+
+    <div class="detail-panel" id="siteDetailPanel">
+      <div class="detail-header">
+        <div>
+          <div class="detail-zone-name" id="siteDetailName">Select a suburb</div>
+          <div class="detail-zone-sub">Click a suburb card or map marker</div>
+        </div>
+        <div class="close-btn" onclick="closeSiteDetail()">×</div>
+      </div>
+      <div class="detail-body">
+        <div>
+          <div class="detail-section-title">Insight Scores <span class="tip" title="Scores are calculated from parking meter density, bay capacity, and occupancy forecast patterns. Indicative proxies only.">ⓘ</span></div>
+          <div class="detail-grid">
+            <div class="detail-stat">
+              <div class="detail-stat-label">Foot Traffic <span class="tip" onclick="showTooltip(event,'Estimates visitor volume by combining average parking occupancy (60% weight) and total bay capacity (40% weight). Higher occupancy across more bays = more people visiting.')">ⓘ</span></div>
+              <div class="detail-stat-value accent" id="sDetailFoot">—</div>
+            </div>
+            <div class="detail-stat">
+              <div class="detail-stat-label">EV Suitability <span class="tip" onclick="showTooltip(event,'Scores based on bays per zone, proportion of long-stay zones (4hrs+), and available off-peak space. Ideal EV locations have capacity, long-stay behaviour, and room to add chargers.')">ⓘ</span></div>
+              <div class="detail-stat-value green" id="sDetailEV">—</div>
+            </div>
+            <div class="detail-stat">
+              <div class="detail-stat-label">Commercial Dev <span class="tip" onclick="showTooltip(event,'Combines average occupancy (50%) and average weekday parking rate (50%). Areas commanding high prices with consistent demand signal strong commercial investment potential.')">ⓘ</span></div>
+              <div class="detail-stat-value blue" id="sDetailComm">—</div>
+            </div>
+            <div class="detail-stat">
+              <div class="detail-stat-label">Demand Score <span class="tip" onclick="showTooltip(event,'Direct conversion of average predicted occupancy from the 0–5 scale to a percentage out of 100. Purely reflects how busy parking is on average across all hours and dates in the dataset.')">ⓘ</span></div>
+              <div class="detail-stat-value" id="sDetailDemand">—</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="detail-section-title">Parking Infrastructure</div>
+          <div class="detail-grid">
+            <div class="detail-stat"><div class="detail-stat-label">Meter Zones</div><div class="detail-stat-value" id="sDetailZones">—</div></div>
+            <div class="detail-stat"><div class="detail-stat-label">Total Bays</div><div class="detail-stat-value" id="sDetailBays">—</div></div>
+            <div class="detail-stat"><div class="detail-stat-label">Avg Rate</div><div class="detail-stat-value accent" id="sDetailRate">—</div></div>
+            <div class="detail-stat"><div class="detail-stat-label">Avg Occupancy</div><div class="detail-stat-value" id="sDetailOcc">—</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="detail-section-title">Activity by Hour <span class="tip" title="Average predicted parking occupancy by hour across all zones in this suburb.">ⓘ</span></div>
+          <div class="occ-chart" id="siteOccChart"></div>
+          <div class="occ-disclaimer">Car-based activity only — public transport users not captured</div>
+        </div>
+        <div>
+          <div class="detail-section-title">Score Breakdown</div>
+          <div id="siteScoreBars"></div>
+        </div>
+        <div>
+          <div class="detail-section-title">Recommendation</div>
+          <div class="recommendation-box" id="siteRecommendation">Select a suburb to view recommendations</div>
+        </div>
+        <div class="data-note">Supplement with zoning, demographics, and transport data for full commercial analysis.</div>
+      </div>
+      <button class="nav-btn" onclick="exportReport()">↓ Export Suburb Report</button>
+    </div>
+  </div>
+
+  <!-- PANEL 2: DEMAND HEATMAP -->
+  <div class="panel" id="heatmapPanel">
+    <div style="flex:1;position:relative;overflow:hidden">
+      <div id="heatmapMap" style="width:100%;height:100%"></div>
+      <div class="heatmap-controls">
+        <div class="heatmap-title">Parking Demand by Hour</div>
+        <div class="heatmap-time-wrap">
+          <input type="range" class="time-slider" id="heatmapSlider" min="0" max="23" value="9" oninput="updateHeatmap(this.value)">
+          <div class="heatmap-time-val" id="heatmapTimeDisplay">9:00 AM</div>
+        </div>
+        <div class="heatmap-sub">Drag to see how demand shifts across the day</div>
+      </div>
+      <div class="map-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#4af0a0"></div>Low demand</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f5c842"></div>Medium</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f05a5a"></div>High demand</div>
+        <div class="legend-item" style="margin-left:8px;padding-left:12px;border-left:1px solid var(--border)">Predicted car-based activity</div>
+      </div>
+      <div class="heatmap-info">
+        <div class="heatmap-info-title">💡 How to use this</div>
+        <div class="heatmap-info-body">Each marker is a parking zone. Colour shows predicted demand at the selected hour. Use this to identify when and where commercial activity peaks — useful for planning store opening hours, event scheduling, or EV charging placement.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 3: SUBURB COMPARATOR -->
+  <div class="panel" id="comparePanel">
+    <div class="compare-container">
+      <div class="compare-header">
+        <div>
+          <div class="sidebar-title">Suburb Comparator</div>
+          <div class="sidebar-sub">Select up to 3 suburbs to compare side by side</div>
+        </div>
+        <button class="clear-btn" onclick="clearComparison()">✕ Clear All</button>
+      </div>
+      <div class="compare-selectors">
+        <div class="compare-slot">
+          <div class="slot-label">Suburb 1</div>
+          <select class="compare-select" onchange="selectCompareSuburb(0,this.value)" id="csel0"><option value="">— Select suburb —</option></select>
+        </div>
+        <div class="compare-slot">
+          <div class="slot-label">Suburb 2</div>
+          <select class="compare-select" onchange="selectCompareSuburb(1,this.value)" id="csel1"><option value="">— Select suburb —</option></select>
+        </div>
+        <div class="compare-slot">
+          <div class="slot-label">Suburb 3</div>
+          <select class="compare-select" onchange="selectCompareSuburb(2,this.value)" id="csel2"><option value="">— Select suburb —</option></select>
+        </div>
+      </div>
+      <div class="compare-table-wrap">
+        <div id="compareTable"></div>
+        <div class="compare-empty" id="compareEmpty">Select at least one suburb above to begin comparing</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 4: FEEDBACK -->
+  <div class="panel" id="feedbackPanel">
+    <div class="feedback-container">
+      <div class="feedback-left">
+        <div class="sidebar-title" style="margin-bottom:6px">Submit Feedback</div>
+        <div class="sidebar-sub" style="margin-bottom:24px">Help us understand how useful these insights are for your decision-making</div>
+        <div class="feedback-form">
+          <div class="form-group">
+            <label class="form-label">What type of decision are you trying to make?</label>
+            <div class="form-chips" id="decisionChips">
+              <div class="chip" onclick="selectDecision(this,'Café or Restaurant')">☕ Café / Restaurant</div>
+              <div class="chip" onclick="selectDecision(this,'EV Charging Infrastructure')">⚡ EV Charging</div>
+              <div class="chip" onclick="selectDecision(this,'Event or Pop-up')">🎪 Event / Pop-up</div>
+              <div class="chip" onclick="selectDecision(this,'Retail Store')">🛍 Retail Store</div>
+              <div class="chip" onclick="selectDecision(this,'Commercial Investment')">🏢 Investment</div>
+              <div class="chip" onclick="selectDecision(this,'Other')">⋯ Other</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Which panel did you find most useful?</label>
+            <select class="filter-select" id="panelUsed" style="width:100%;margin-top:6px">
+              <option value="">— Select —</option>
+              <option>Site Intelligence Dashboard</option>
+              <option>Demand Heatmap</option>
+              <option>Suburb Comparator</option>
+              <option>All equally useful</option>
+              <option>None were useful</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">How useful were the insights for your decision?</label>
+            <div class="rating-row">
+              <span class="rating-label">Not useful</span>
+              <div class="rating-stars" id="ratingStars">
+                <div class="star" onclick="setRating(1)">★</div>
+                <div class="star" onclick="setRating(2)">★</div>
+                <div class="star" onclick="setRating(3)">★</div>
+                <div class="star" onclick="setRating(4)">★</div>
+                <div class="star" onclick="setRating(5)">★</div>
+              </div>
+              <span class="rating-label">Very useful</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">What information is missing that would help your decision?</label>
+            <textarea class="form-textarea" id="missingInfo" placeholder="e.g. public transport data, land zoning, demographic information..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Any other comments or suggestions?</label>
+            <textarea class="form-textarea" id="otherComments" placeholder="e.g. what you liked, what was confusing, what you would change..."></textarea>
+          </div>
+          <button class="nav-btn" onclick="submitFeedback()" style="width:100%">Submit Feedback</button>
+          <div class="form-success" id="formSuccess" style="display:none">✓ Thank you — your feedback has been recorded</div>
+        </div>
+      </div>
+      <div class="feedback-right">
+        <div class="sidebar-title" style="margin-bottom:6px">Collected Responses</div>
+        <div class="sidebar-sub" style="margin-bottom:16px">Feedback submitted during this session</div>
+        <div id="feedbackList"><div class="compare-empty">No responses yet</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 5: AI ASSISTANT -->
+  <div class="panel" id="aiPanel">
+    <div class="ai-container">
+      <div class="ai-chat-area">
+        <div class="ai-header">
+          <div>
+            <div class="sidebar-title">ParkBNE AI Assistant</div>
+            <div class="sidebar-sub">Ask anything about Brisbane commercial site insights</div>
+          </div>
+          <div class="ai-status" id="aiStatus">
+            <div class="status-dot"></div>
+            <span>Ready</span>
+          </div>
+        </div>
+        <div class="ai-messages" id="aiMessages">
+          <div class="ai-message assistant">
+            <div class="ai-bubble">
+              👋 Hi! I'm your ParkBNE commercial intelligence assistant. I can help you interpret suburb scores, compare locations, identify peak activity times, and suggest the best areas for your business needs based on Brisbane City Council parking data.<br><br>
+              Try asking me:<br>
+              <span class="ai-suggestion" onclick="sendSuggestion(this)">Which suburb has the highest foot traffic?</span>
+              <span class="ai-suggestion" onclick="sendSuggestion(this)">Where should I open a café in Brisbane?</span>
+              <span class="ai-suggestion" onclick="sendSuggestion(this)">Which area is best for EV charging infrastructure?</span>
+              <span class="ai-suggestion" onclick="sendSuggestion(this)">What time does Spring Hill peak?</span>
+            </div>
+          </div>
+        </div>
+        <div class="ai-input-area">
+          <textarea class="ai-input" id="aiInput" placeholder="Ask about suburbs, scores, peak hours, business recommendations..." rows="1" onkeydown="handleAIKeydown(event)" oninput="autoResize(this)"></textarea>
+          <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="ai-context-panel">
+        <div class="sidebar-title" style="margin-bottom:6px">Data Context</div>
+        <div class="sidebar-sub" style="margin-bottom:16px">The AI has access to all suburb scores and parking data</div>
+        <div class="ai-context-chips">
+          <div class="context-chip">18 suburbs analysed</div>
+          <div class="context-chip">945 parking zones</div>
+          <div class="context-chip">Hourly demand data</div>
+          <div class="context-chip">Jan–Mar 2026</div>
+        </div>
+        <div class="detail-section-title" style="margin-top:16px;margin-bottom:10px">Top Suburbs by Score</div>
+        <div id="aiContextList"></div>
+        <div class="data-note" style="margin-top:16px">AI responses are based on BCC open parking data. Supplement with zoning and transport data for full commercial analysis.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="tooltipPopup" class="tooltip-popup" onclick="hideTooltip()"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="commercial_data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
